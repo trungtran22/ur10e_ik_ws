@@ -18,5 +18,8 @@
     visual_parameters_file="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml">
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
+  
+  <xacro:include filename="simple_gripper.xacro"/>
+  <xacro:simple_gripper parent="tool0"/>
 
 </robot>

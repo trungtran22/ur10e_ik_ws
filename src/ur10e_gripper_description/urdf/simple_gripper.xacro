@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="simple_gripper" params="parent">
+    <!-- materials, base joint+link, 2 finger joints+links -->
+    <material name="grip_dark"><color rgba="0.15 0.15 0.15 1"/></material>
+    <material name="grip_blue"><color rgba="0.1 0.4 0.8 1"/></material>
+    <link name="gripper_base_link">
+      <visual>   <geometry><box size="0.06 0.08 0.03"/></geometry> <material name="grip_dark"/> </visual>
+      <collision><geometry><box size="0.06 0.08 0.03"/></geometry> </collision>
+      <inertial> <mass value="1e-4"/> <inertia ixx="…" ixy="0" ixz="0" iyy="…" iyz="0" izz="…"/> </inertial>
+    </link>
+    
+    <joint name="gripper_base_joint" type="fixed">
+      <parent link="${parent}"/> <child link="gripper_base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>   
+    </joint>
+    
+    <link name="gripper_left_finger_link">
+      <visual>   <geometry><box size="0.012 0.012 0.05"/></geometry> <material name="grip_dark"/> </visual>
+      <collision><geometry><box size="0.012 0.012 0.05"/></geometry> </collision>
+      <inertial> <mass value="0.05"/> <inertia ixx="1e-5" ixy="0" ixz="0" iyy="…" iyz="0" izz="…"/> </inertial>
+    </link>
+    
+    <joint name="gripper_left_finger_joint" type="prismatic">
+      <parent link="gripper_base_link"/> <child link="gripper_left_finger_link"/>
+      <origin xyz="0 0.035 0.04" rpy="0 0 0"/>   
+      <axis xyz="0 -1 0"/>              
+      <limit lower="0" upper="0.04" effort="50" velocity="0.2"/>  
+    </joint>
+    
+    <link name="gripper_right_finger_link">
+      <visual>   <geometry><box size="0.012 0.012 0.05"/></geometry> <material name="grip_dark"/> </visual>
+      <collision><geometry><box size="0.012 0.012 0.05"/></geometry> </collision>
+      <inertial> <mass value="0.05"/> <inertia ixx="1e-5" ixy="0" ixz="0" iyy="…" iyz="0" izz="…"/> </inertial>
+    </link>
+    
+    <joint name="gripper_right_finger_joint" type="prismatic">
+      <parent link="gripper_base_link"/> <child link="gripper_right_finger_link"/>
+      <origin xyz="0 -0.035 0.04" rpy="0 0 0"/>   
+      <axis xyz="0 1 0"/>             
+      <limit lower="0" upper="0.04" effort="50" velocity="0.2"/>  
+    </joint>
+  </xacro:macro>
+</robot>
