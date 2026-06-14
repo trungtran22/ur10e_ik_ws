@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
     python3-rosdep \
     ros-humble-ur-description \
+    ros-humble-robotiq-description \
     ros-humble-ros2-control \
     ros-humble-ros2-controllers \
     ros-humble-gazebo-ros2-control \
@@ -30,7 +31,8 @@ COPY src/ ./src/
 
 RUN source /opt/ros/humble/setup.bash && colcon build --symlink-install
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
-    echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc 
+    echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc
+     
 COPY ros_entrypoint.sh /ros_entrypoint.sh
 RUN chmod +x /ros_entrypoint.sh
 ENTRYPOINT ["/ros_entrypoint.sh"]

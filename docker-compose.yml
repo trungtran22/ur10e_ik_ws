@@ -1,0 +1,17 @@
+services:
+  ros2:
+    build: .
+    image: ur10e_ik:latest
+    network_mode: host
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - GAZEBO_MODEL_DATABASE_URI=
+      - GAZEBO_MODEL_PATH=/opt/ros/humble/share
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./:/ros2_ws
