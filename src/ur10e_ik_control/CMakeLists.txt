@@ -26,5 +26,25 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+find_package(Eigen3 REQUIRED)
+
+add_library(ur10e_kinematics src/ur10e_kinematics.cpp)
+target_include_directories(ur10e_kinematics PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(ur10e_kinematics Eigen3::Eigen)
+target_compile_features(ur10e_kinematics PUBLIC cxx_std_17)
+
+add_executable(fk_test src/fk_test.cpp)
+target_link_libraries(fk_test ur10e_kinematics Eigen3::Eigen)
+
+install(TARGETS ur10e_kinematics
+  ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
+install(TARGETS fk_test DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
+
+add_executable(ik_round_trip_test src/ik_round_trip_test.cpp)
+target_link_libraries(ik_round_trip_test ur10e_kinematics Eigen3::Eigen)
+install(TARGETS ik_round_trip_test DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
