@@ -20,8 +20,15 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
   
-  <xacro:include filename="simple_gripper.xacro"/>
-  <xacro:simple_gripper parent="tool0"/>
+  <!-- <xacro:include filename="simple_gripper.xacro"/>
+  <xacro:simple_gripper parent="tool0"/> -->
+
+  <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro"/>
+  <xacro:robotiq_gripper
+    name="RobotiqGripper" prefix="" parent="tool0"
+    include_ros2_control="false">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:robotiq_gripper>
 
   <xacro:include filename="ur10e_ros2_control.xacro"/>
 

@@ -23,7 +23,7 @@ public:
     current_.fill(0.0);
 
     gripper_open_  = declare_parameter<double>("gripper_open", 0.0);
-    gripper_close_ = declare_parameter<double>("gripper_close", 0.04);
+    gripper_close_ = declare_parameter<double>("gripper_close", 0.8);
     move_time_     = declare_parameter<double>("move_time", 4.0);
 
     // publishers
