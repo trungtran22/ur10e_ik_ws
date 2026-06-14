@@ -1,0 +1,13 @@
+# ROS 2 / colcon sinh ra khi build — KHÔNG commit
+build/
+install/
+log/
+
+# Trình soạn thảo / hệ điều hành
+.vscode/
+*.swp
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
