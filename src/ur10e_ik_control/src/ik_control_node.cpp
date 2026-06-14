@@ -94,12 +94,13 @@ private:
     //   gợi ý khung:
     double bestCost = 1e18; 
     ur10e_ik::JointArray best;
+    static const double w[6] = {4.0, 3.0, 2.0, 1.0, 1.0, 1.0};
     for (const auto & s : sols) { 
         double cost = 0;
         for (int i = 0; i <6; ++i){
             double d = s[i] - current_[i];
             double d_wrapped = wrapToPi(d);
-            cost += d_wrapped*d_wrapped;
+            cost += w[i]*d_wrapped*d_wrapped;
         } 
         if (cost < bestCost){
             bestCost = cost;
