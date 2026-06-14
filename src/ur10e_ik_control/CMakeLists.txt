@@ -47,4 +47,9 @@ add_executable(ik_round_trip_test src/ik_round_trip_test.cpp)
 target_link_libraries(ik_round_trip_test ur10e_kinematics Eigen3::Eigen)
 install(TARGETS ik_round_trip_test DESTINATION lib/${PROJECT_NAME})
 
+add_executable(ik_control_node src/ik_control_node.cpp)
+target_link_libraries(ik_control_node ur10e_kinematics Eigen3::Eigen)
+ament_target_dependencies(ik_control_node
+  rclcpp sensor_msgs geometry_msgs trajectory_msgs std_msgs std_srvs tf2)
+install(TARGETS ik_control_node DESTINATION lib/${PROJECT_NAME})
 ament_package()

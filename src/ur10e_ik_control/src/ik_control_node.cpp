@@ -1,0 +1,152 @@
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <vector>
+#include <cmath>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_srvs/srv/set_bool.hpp>
+
+#include <trajectory_msgs/msg/joint_trajectory_point.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include "ur10e_ik_control/ur10e_kinematics.hpp"
+
+class IkControlNode : public rclcpp::Node {
+public:
+  IkControlNode() : Node("ur10e_ik_control") {
+    arm_joint_names_ = {"shoulder_pan_joint","shoulder_lift_joint","elbow_joint",
+                        "wrist_1_joint","wrist_2_joint","wrist_3_joint"};
+    current_.fill(0.0);
+
+    gripper_open_  = declare_parameter<double>("gripper_open", 0.0);
+    gripper_close_ = declare_parameter<double>("gripper_close", 0.04);
+    move_time_     = declare_parameter<double>("move_time", 4.0);
+
+    // publishers
+    traj_pub_ = create_publisher<trajectory_msgs::msg::JointTrajectory>(
+      "/joint_trajectory_controller/joint_trajectory", 10);
+    gripper_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/gripper_controller/commands", 10);
+
+    // subscribers
+    joint_sub_ = create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", 10,
+      std::bind(&IkControlNode::onJointState, this, std::placeholders::_1));
+    pose_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
+      "/target_pose", 10,
+      std::bind(&IkControlNode::onTargetPose, this, std::placeholders::_1));
+
+    // service
+    gripper_srv_ = create_service<std_srvs::srv::SetBool>(
+      "/set_gripper",
+      std::bind(&IkControlNode::onSetGripper, this,
+                std::placeholders::_1, std::placeholders::_2));
+
+    RCLCPP_INFO(get_logger(), "UR10e IK node ready.");
+  }
+
+private:
+  // cập nhật tư thế khớp hiện tại từ /joint_states
+  void onJointState(const sensor_msgs::msg::JointState::SharedPtr msg) {
+    for (size_t i = 0; i < arm_joint_names_.size(); ++i) {
+      auto it = std::find(msg->name.begin(), msg->name.end(), arm_joint_names_[i]);
+      if (it != msg->name.end()) {
+        size_t idx = std::distance(msg->name.begin(), it);
+        if (idx < msg->position.size()) current_[i] = msg->position[idx];
+      }
+    }
+  }
+  static double wrapToPi(double a) {
+    while (a >  M_PI) a -= 2.0 * M_PI;
+    while (a <= -M_PI) a += 2.0 * M_PI;
+    return a;
+  }
+
+  // STUB — lượt sau bạn điền: dựng T -> inverse() -> chọn nghiệm -> publish quỹ đạo
+  void onTargetPose(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+  // (1) dựng T 4x4 từ pose: quaternion -> ma trận xoay, position -> cột tịnh tiến
+    tf2::Quaternion qt(msg->pose.orientation.x, msg->pose.orientation.y,
+                        msg->pose.orientation.z, msg->pose.orientation.w);
+    tf2::Matrix3x3 m(qt);
+    Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c) T(r, c) = m[r][c];
+    T(0,3) = msg->pose.position.x;
+    T(1,3) = msg->pose.position.y;
+    T(2,3) = msg->pose.position.z;
+
+    // (2) gọi IK
+    const auto sols = ur10e_ik::inverse(T);
+    if (sols.empty()) {
+        RCLCPP_WARN(get_logger(), "Khong co nghiem IK (pose ngoai tam).");
+        return;
+    }
+
+    // (3) CHỌN NGHIỆM gần current_ nhất  (BẠN VIẾT)
+    //   - duyệt mọi nghiệm s trong sols
+    //   - tính "chi phí" = tổng bình phương sai khác từng khớp so với current_
+    //     (nhớ wrap hiệu số về (-pi, pi] trước khi bình phương, như wrapToPi)
+    //   - giữ nghiệm có chi phí nhỏ nhất -> ur10e_ik::JointArray best
+    //   gợi ý khung:
+    double bestCost = 1e18; 
+    ur10e_ik::JointArray best;
+    for (const auto & s : sols) { 
+        double cost = 0;
+        for (int i = 0; i <6; ++i){
+            double d = s[i] - current_[i];
+            double d_wrapped = wrapToPi(d);
+            cost += d_wrapped*d_wrapped;
+        } 
+        if (cost < bestCost){
+            bestCost = cost;
+            best = s;
+        }
+    }
+
+    // (4) kiểm tra round-trip (lưới an toàn)
+    Eigen::Matrix4d Tc = ur10e_ik::forward(best);
+    double posErr = (Tc.block<3,1>(0,3) - T.block<3,1>(0,3)).norm();
+    RCLCPP_INFO(get_logger(), "IK: %zu nghiem, sai so vi tri = %.5f m", sols.size(), posErr);
+
+    // (5) đóng gói quỹ đạo 1 điểm và publish xuống controller cánh tay
+    trajectory_msgs::msg::JointTrajectory traj;
+    traj.joint_names = arm_joint_names_;
+    trajectory_msgs::msg::JointTrajectoryPoint pt;
+    pt.positions.assign(best.begin(), best.end());
+    pt.time_from_start = rclcpp::Duration::from_seconds(move_time_);
+    traj.points.push_back(pt);
+    traj_pub_->publish(traj);
+}
+
+  // mở/đóng gripper: true -> mở (0.0), false -> đóng (0.04)
+  void onSetGripper(const std::shared_ptr<std_srvs::srv::SetBool::Request> req,
+                    std::shared_ptr<std_srvs::srv::SetBool::Response> res) {
+    std_msgs::msg::Float64MultiArray cmd;
+    double pos = req->data ? gripper_open_ : gripper_close_;
+    cmd.data = {pos, pos};               
+    gripper_pub_->publish(cmd);
+    res->success = true;
+    res->message = req->data ? "open gripper" : "close gripper";
+    RCLCPP_INFO(get_logger(), "%s (pos=%.3f)", res->message.c_str(), pos);
+  }
+
+  std::vector<std::string> arm_joint_names_;
+  ur10e_ik::JointArray current_;
+  double gripper_open_, gripper_close_, move_time_;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr traj_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr gripper_pub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr gripper_srv_;
+};
+
+int main(int argc, char** argv) {
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<IkControlNode>());
+  rclcpp::shutdown();
+  return 0;
+}
