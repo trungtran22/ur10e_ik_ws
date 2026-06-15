@@ -14,6 +14,9 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include "ur10e_ik_control/ur10e_kinematics.hpp"
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <chrono>
 
 class IkControlNode : public rclcpp::Node {
 public:
@@ -45,7 +48,8 @@ public:
       "/set_gripper",
       std::bind(&IkControlNode::onSetGripper, this,
                 std::placeholders::_1, std::placeholders::_2));
-
+    marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/planner_markers", 10);
+    marker_timer_ = create_wall_timer(std::chrono::seconds(1), std::bind(&IkControlNode::publishObstacle, this));
     RCLCPP_INFO(get_logger(), "UR10e IK node ready.");
   }
 
@@ -107,6 +111,22 @@ private:
     if (path.empty()) { RCLCPP_WARN(get_logger(), "RRT khong tim duoc duong"); return; }
     RCLCPP_INFO(get_logger(), "RRT: %zu waypoint", path.size());
 
+    // Path visualize
+    visualization_msgs::msg::Marker line;
+    line.header.frame_id = "world";  line.header.stamp = now();
+    line.ns = "rrt_path";  line.id = 1;
+    line.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    line.action = visualization_msgs::msg::Marker::ADD;
+    line.scale.x = 0.01;
+    line.color.g = 1.0;  line.color.a = 1.0;
+    for (const auto & wp : path) {
+      Eigen::Vector3d p = ur10e_ik::forwardAll(wp)[5].block<3,1>(0,3);
+      geometry_msgs::msg::Point pt; pt.x = p.x(); pt.y = p.y(); pt.z = p.z();
+      line.points.push_back(pt);
+    }
+    visualization_msgs::msg::MarkerArray arr; arr.markers.push_back(line);
+    marker_pub_->publish(arr);
+
     // publish quỹ đạo NHIỀU điểm
     trajectory_msgs::msg::JointTrajectory traj;
     traj.joint_names = arm_joint_names_;                // 6 tên khớp như cũ của bạn
@@ -132,6 +152,20 @@ private:
     RCLCPP_INFO(get_logger(), "%s (pos=%.3f)", res->message.c_str(), pos);
   }
 
+  void publishObstacle() {
+    visualization_msgs::msg::Marker m;
+    m.header.frame_id = "world";  m.header.stamp = now();
+    m.ns = "obstacle";  m.id = 0;
+    m.type = visualization_msgs::msg::Marker::CUBE;
+    m.action = visualization_msgs::msg::Marker::ADD;
+    m.pose.position.x = 0.5; m.pose.position.y = 0.2; m.pose.position.z = 0.25;
+    m.pose.orientation.w = 1.0;
+    m.scale.x = 0.15; m.scale.y = 0.15; m.scale.z = 0.5;
+    m.color.r = 0.9; m.color.g = 0.3; m.color.b = 0.2; m.color.a = 0.8;
+    visualization_msgs::msg::MarkerArray arr; arr.markers.push_back(m);
+    marker_pub_->publish(arr);
+  }
+
   std::vector<std::string> arm_joint_names_;
   ur10e_ik::JointArray current_;
   ur10e_ik::CollisionChecker cc_;
@@ -142,6 +176,8 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr gripper_srv_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+  rclcpp::TimerBase::SharedPtr marker_timer_;
 };
 
 int main(int argc, char** argv) {

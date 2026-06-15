@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(fcl REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -51,7 +52,7 @@ install(TARGETS ik_round_trip_test DESTINATION lib/${PROJECT_NAME})
 add_executable(ik_control_node src/ik_control_node.cpp)
 target_link_libraries(ik_control_node ur10e_kinematics Eigen3::Eigen)
 ament_target_dependencies(ik_control_node
-  rclcpp sensor_msgs geometry_msgs trajectory_msgs std_msgs std_srvs tf2)
+  rclcpp sensor_msgs geometry_msgs trajectory_msgs std_msgs std_srvs tf2 visualization_msgs)
 install(TARGETS ik_control_node DESTINATION lib/${PROJECT_NAME})
 
 add_executable(fcl_test src/fcl_test.cpp)
