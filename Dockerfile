@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-tf2-geometry-msgs \
     libeigen3-dev \
     python3-vcstool \
+    libfcl-dev \
     python3-pip \
     cmake \
     ca-certificates \

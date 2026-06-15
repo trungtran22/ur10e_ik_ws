@@ -14,6 +14,7 @@ find_package(trajectory_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(fcl REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -52,4 +53,19 @@ target_link_libraries(ik_control_node ur10e_kinematics Eigen3::Eigen)
 ament_target_dependencies(ik_control_node
   rclcpp sensor_msgs geometry_msgs trajectory_msgs std_msgs std_srvs tf2)
 install(TARGETS ik_control_node DESTINATION lib/${PROJECT_NAME})
+
+add_executable(fcl_test src/fcl_test.cpp)
+target_link_libraries(fcl_test fcl)
+install(TARGETS fcl_test DESTINATION lib/${PROJECT_NAME})
+
+add_executable(collision_test src/collision_test.cpp)
+target_link_libraries(collision_test ur10e_kinematics fcl Eigen3::Eigen)
+target_include_directories(collision_test PRIVATE include)
+install(TARGETS collision_test DESTINATION lib/${PROJECT_NAME})
+
+add_executable(rrt_test src/rrt_test.cpp)
+target_link_libraries(rrt_test ur10e_kinematics fcl Eigen3::Eigen)
+target_include_directories(rrt_test PRIVATE include)
+install(TARGETS rrt_test DESTINATION lib/${PROJECT_NAME})
+
 ament_package()
