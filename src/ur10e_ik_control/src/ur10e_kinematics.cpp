@@ -25,6 +25,19 @@ Eigen::Matrix4d forward(const JointArray & q){
     return T;
 }
 
+std::array<Eigen::Matrix4d, 6> forwardAll(const JointArray& q) {
+    const double H = M_PI / 2.0;
+    std::array<Eigen::Matrix4d, 6> out;
+    Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+    T = T * dhTransform(q[0], DH::d1, 0.0,    H);   out[0] = T;
+    T = T * dhTransform(q[1], 0.0,    DH::a2, 0.0);  out[1] = T;
+    T = T * dhTransform(q[2], 0.0,    DH::a3, 0.0);  out[2] = T;
+    T = T * dhTransform(q[3], DH::d4, 0.0,    H);   out[3] = T;
+    T = T * dhTransform(q[4], DH::d5, 0.0,   -H);   out[4] = T;
+    T = T * dhTransform(q[5], DH::d6, 0.0,    0.0);  out[5] = T;
+    return out;
+}
+
 static double clampUnit(double x) { return x > 1.0 ? 1.0 : (x < -1.0 ? -1.0 : x); }
 
 static double wrapToPi(double a) {

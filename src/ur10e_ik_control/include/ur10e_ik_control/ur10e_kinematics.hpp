@@ -19,5 +19,5 @@ using JointArray = std::array<double, 6>;   // {theta1..theta6} rad
 
 Eigen::Matrix4d forward(const JointArray & q);          // FK
 std::vector<JointArray> inverse(const Eigen::Matrix4d & T);  // IK (lượt sau)
-
+std::array<Eigen::Matrix4d, 6> forwardAll(const JointArray& q);
 }  // namespace ur10e_ik
