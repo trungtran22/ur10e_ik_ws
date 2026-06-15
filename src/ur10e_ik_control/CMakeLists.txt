@@ -68,4 +68,6 @@ target_link_libraries(rrt_test ur10e_kinematics fcl Eigen3::Eigen)
 target_include_directories(rrt_test PRIVATE include)
 install(TARGETS rrt_test DESTINATION lib/${PROJECT_NAME})
 
+target_link_libraries(ik_control_node ur10e_kinematics fcl)
+
 ament_package()

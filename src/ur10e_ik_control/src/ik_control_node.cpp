@@ -9,7 +9,7 @@
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_srvs/srv/set_bool.hpp>
-
+#include "ur10e_ik_control/rrt_planner.hpp"
 #include <trajectory_msgs/msg/joint_trajectory_point.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -92,43 +92,40 @@ private:
     //     (nhớ wrap hiệu số về (-pi, pi] trước khi bình phương, như wrapToPi)
     //   - giữ nghiệm có chi phí nhỏ nhất -> ur10e_ik::JointArray best
     //   gợi ý khung:
-    double bestCost = 1e18; 
-    ur10e_ik::JointArray best;
-    static const double w[6] = {4.0, 3.0, 2.0, 1.0, 1.0, 1.0};
-    for (const auto & s : sols) { 
-        double cost = 0;
-        for (int i = 0; i <6; ++i){
-            double d = s[i] - current_[i];
-            double d_wrapped = wrapToPi(d);
-            cost += w[i]*d_wrapped*d_wrapped;
-        } 
-        if (cost < bestCost){
-            bestCost = cost;
-            best = s;
-        }
+    double bestCost = 1e18;
+    ur10e_ik::JointArray goal; bool found = false;
+    for (const auto & s : sols) {
+      if (cc_.isColliding(s)) continue;                 // bỏ nghiệm đụng vật cản
+      double cost = 0;
+      for (int i = 0; i < 6; ++i) { double d = wrapToPi(s[i] - current_[i]); cost += d*d; }
+      if (cost < bestCost) { bestCost = cost; goal = s; found = true; }
     }
+    if (!found) { RCLCPP_WARN(get_logger(), "Moi nghiem IK deu va cham"); return; }
 
-    // (4) kiểm tra round-trip (lưới an toàn)
-    Eigen::Matrix4d Tc = ur10e_ik::forward(best);
-    double posErr = (Tc.block<3,1>(0,3) - T.block<3,1>(0,3)).norm();
-    RCLCPP_INFO(get_logger(), "IK: %zu nghiem, sai so vi tri = %.5f m", sols.size(), posErr);
+    // RRT lập đường current_ -> goal
+    auto path = rrt_.plan(current_, goal);
+    if (path.empty()) { RCLCPP_WARN(get_logger(), "RRT khong tim duoc duong"); return; }
+    RCLCPP_INFO(get_logger(), "RRT: %zu waypoint", path.size());
 
-    // (5) đóng gói quỹ đạo 1 điểm và publish xuống controller cánh tay
+    // publish quỹ đạo NHIỀU điểm
     trajectory_msgs::msg::JointTrajectory traj;
-    traj.joint_names = arm_joint_names_;
-    trajectory_msgs::msg::JointTrajectoryPoint pt;
-    pt.positions.assign(best.begin(), best.end());
-    pt.time_from_start = rclcpp::Duration::from_seconds(move_time_);
-    traj.points.push_back(pt);
+    traj.joint_names = arm_joint_names_;                // 6 tên khớp như cũ của bạn
+    double dt = 0.4;
+    for (size_t k = 0; k < path.size(); ++k) {
+      trajectory_msgs::msg::JointTrajectoryPoint pt;
+      pt.positions.assign(path[k].begin(), path[k].end());
+      pt.time_from_start = rclcpp::Duration::from_seconds((k + 1) * dt);
+      traj.points.push_back(pt);
+    }
     traj_pub_->publish(traj);
-}
+  }
 
   // mở/đóng gripper: true -> mở (0.0), false -> đóng (0.04)
   void onSetGripper(const std::shared_ptr<std_srvs::srv::SetBool::Request> req,
                     std::shared_ptr<std_srvs::srv::SetBool::Response> res) {
     std_msgs::msg::Float64MultiArray cmd;
     double pos = req->data ? gripper_open_ : gripper_close_;
-    cmd.data = {pos, pos};               
+    cmd.data = {pos};               
     gripper_pub_->publish(cmd);
     res->success = true;
     res->message = req->data ? "open gripper" : "close gripper";
@@ -137,6 +134,8 @@ private:
 
   std::vector<std::string> arm_joint_names_;
   ur10e_ik::JointArray current_;
+  ur10e_ik::CollisionChecker cc_;
+  ur10e_ik::RRTPlanner rrt_{cc_};
   double gripper_open_, gripper_close_, move_time_;
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr traj_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr gripper_pub_;
